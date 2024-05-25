@@ -3,75 +3,119 @@ define('__ROOT__', dirname(__DIR__));
 
 class RSAController 
 {
-    private string $key = '123';
+    private function greatestCommonDivisor($a, $b){
+        while($b != 0){
+            $t = $a;
+            $a = $b;
+            $b = $t % $b;
+        }
+        return $a;
+    }
+
+    public function generateKeys(int $p, int $q){
+        try{
+            $n = $p * $q;
+            $phi = ($p - 1) * ($q - 1);
+        
+            do {
+                $e = rand(2, $phi - 1);
+            } while ($this->greatestCommonDivisor($e, $phi) != 1);
+        
+            $d = $this->modInverse($e, $phi);
+            echo json_encode( array(
+                "public" => array($e, $n),
+                "private" => array($d, $n)
+            ));
+        }catch (\Exception $e){
+            return $e->getMessage();
+        }
+
+    }
+    function modInverse($a, $m) {
+        $m0 = $m;
+        $x0 = 0;
+        $x1 = 1;
+        
+        if ($m == 1) return 0;
+
+        while ($a > 1) {
+            $q = intdiv($a, $m);
+            $t = $m;
+
+            $m = $a % $m;
+            $a = $t;
+            $t = $x0;
+
+            $x0 = $x1 - $q * $x0;
+            $x1 = $t;
+        }
+
+        if ($x1 < 0) $x1 += $m0;
+
+        return $x1;
+    }
     
-    public function encrypt($datos){
-        try {
-            //convierto la llave en un array de bytes
-            $keyBytes = str_split($this->key);
-            //convierto los datos en un array de bytes
-            $dataBytes = str_split($datos);
-
-            //variable para almacenar los datos encriptados
-            $encryptedData = '';
-            //variable para almacenar el indice de la llave
-            $keyIndex = 0;
-            //recorro $datos
-            foreach ($dataBytes as $byte) {
-                //aplico el algoritmo XOR para encriptar
-                $encryptedByte = ord($byte) ^ ord($keyBytes[$keyIndex]);
-                //concateno el byte encriptado
-                $encryptedData .= chr($encryptedByte);
-
-                // Ciclo la clave para aplicarla a cada byte de datos
-                $keyIndex = ($keyIndex + 1) % count($keyBytes);
+    function modExp($base, $exp, $mod) {
+        $result = 1;
+        while ($exp > 0) {
+            if ($exp % 2 == 1) {
+                $result = ($result * $base) % $mod;
             }
-            //retorno los datos encriptados
-            return base64_encode($encryptedData);
+            $exp = intdiv($exp, 2);
+            $base = ($base * $base) % $mod;
+        }
+        return $result;
+    }
+    public function encrypt($message, $publicKey){
+        try {
+            list($n, $e) = $publicKey;
+            $messageBytes = unpack('C*', $message);
+            $encrypted = [];
+        
+            foreach ($messageBytes as $byte) {
+                $encrypted[] = $this->modExp($byte, $n, $e);
+            }
+        
+            return implode(' ', $encrypted);
         } catch (\Exception $e) {
             return $e->getMessage();
         }
     }
-    public function decrypt($datos){
+    public function decrypt($encryptedMessage, $privateKey){
         try {
-            //convierto la llave en un array de bytes
-            $keyBytes = str_split($this->key);
-            $encryptedBytes = base64_decode($datos);
-            //variable para almacenar los datos desencriptados
-            $decryptedData = '';
-            //variable para almacenar el indice de la llave
-            $keyIndex = 0;
-    
-            //recorro str_split($encryptedBytes) 
-            foreach (str_split($encryptedBytes) as $byte) {
-                //aplico el algoritmo XOR para desencriptar
-                $decryptedByte = ord($byte) ^ ord($keyBytes[$keyIndex]);
-                //concateno el byte desencriptado
-                $decryptedData .= chr($decryptedByte);
-    
-                // Ciclo la clave para aplicarla a cada byte de datos
-                $keyIndex = ($keyIndex + 1) % count($keyBytes);
+            list($n, $d) = $privateKey;
+            $encryptedBytes = explode(' ', $encryptedMessage);
+            $decrypted = '';
+        
+            foreach ($encryptedBytes as $byte) {
+                $decrypted .= pack('C*', $this->modExp($byte, $n, $d));
             }
-            //retorno los datos desencriptados
-            return $decryptedData;
+        
+            return $decrypted;
         } catch (\Exception $e) {
             return $e->getMessage();
         }
     }
 }
 $obj = new RSAController();
-
 if(isset($_GET['method'])){
     $postMethod = $_GET['method'];
-    $data = $_GET['data'];
 
+    if($postMethod == 'generateKeys'){
+        $p = $_GET['num1'];
+        $q = $_GET['num2'];
+        $result = $obj->generateKeys($p, $q);
+        echo $result;
+        return;
+    }
+    $data = $_GET['data'];
+    $globalKeys =json_decode( $_GET['globalKeys']);
     if($postMethod == 'encrypt' ){
-        $result = $obj->encrypt($data);
+        $result = $obj->encrypt($data, $globalKeys->public);
         echo $result;
-    }else{
-        $result = $obj->decrypt($data);
+    }elseif($postMethod == 'decrypt'){
+        $result = $obj->decrypt($data, $globalKeys->private);
         echo $result;
-    
     }
 }
 /**
