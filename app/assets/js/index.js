@@ -9,22 +9,33 @@ function copyText(id) {
     document.execCommand("copy");
     alert("¡Texto copiado!");
 }
-function generateKeys() {
+function generateKeysA() {
     validation();
 
-    num1 = document.getElementById("d1").value;
-    num2 = document.getElementById("d2").value;
-    // e = document.getElementById("e").value;
+    let num1 = parseInt(document.getElementById("d1").value, 10);
+    let num2 = parseInt(document.getElementById("d2").value, 10);
+    let es = document.getElementById("e").value;
 
-    requestAjax("../../app/controller/RSAController.php?method=generateKeys&"+`num1=${num1}&num2=${num2}`, 'GET', null
-    , (response) => {
-        var keys = JSON.parse(response.data);
-        globalKeys = response.data;
-        document.getElementById("publicKey1").value = keys.public[0];
-        document.getElementById("publicKey2").value = keys.public[1];
-        document.getElementById("privateKey1").value = keys.private[0];
-        document.getElementById("privateKey2").value = keys.private[1];
-    });
+    let p = num1;
+    let q = num2;
+    let n = p * q;
+    let phi = (p - 1) * (q - 1);
+
+    let e =  3;
+
+    while (gcd(e, phi) !== 1) {
+        e += 2;
+    }
+
+    let d = modInverse(e, phi);
+    document.getElementById("textGenerateKey").innerHTML = '';
+    document.getElementById("textGenerateKey").append(`Clave pública: (${e}, ${n})\nClave privada: (${d}, ${n})`);
+    document.getElementById("e").value = e;
+
+    return {
+        publicKey: { e, n },
+        privateKey: { d, n }
+    };
 }
 function validation() {
     if(document.getElementById("d1").value == ''){
@@ -33,36 +44,16 @@ function validation() {
     if(document.getElementById("d2").value == ''){
         document.getElementById("d2").value = defaultValuesKeys.q;
     }
-    // if(document.getElementById("d2").value == ''){
-    //     document.getElementById("e").value = defaultValuesKeys.e;
-    // }
-}
-function encryptData(text) {
-    requestAjax("../../app/controller/RSAController.php?method=encrypt&data="+text+`&globalKeys=${globalKeys}`, 'GET', null
-    , (response) => {
-        console.log(globalKeys);
-        document.getElementById("resultado").value = response.data;
-    });
-}
-function decryptData(text) {
-    requestAjax("../../app/controller/RSAController.php?method=decrypt&data="+text+`&globalKeys=${globalKeys}`, 'GET', null
-    , (response) => {
-        console.log(globalKeys);
-        document.getElementById("resultado3").value = response.data;
-    });
+    if(document.getElementById("e").value == ''){
+        document.getElementById("e").value = defaultValuesKeys.e;
+    }
 }
 
-function requestAjax(url, method, data, fn = (response) => {}) {
-    var ajax = new XMLHttpRequest();
-    ajax.open(method, url);
-    ajax.setRequestHeader("content-type", "application/x-www-form-urlencoded");
-    ajax.responseType = 'text'
-    ajax.onreadystatechange = function() {
-        if (ajax.readyState == 4 && ajax.status == 200) {
-            var response = {data:ajax.response};
-            fn(response);
-        }
+function see(id, hiddenId) {
+    var element = document.getElementById(id);
+    element.style.display = "flex"
+    if (hiddenId) {
+        var element = document.getElementById(hiddenId);
+        element.style.display = "none"
     }
-    ajax.send();
-    
 }
